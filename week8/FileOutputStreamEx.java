@@ -16,3 +16,4 @@ public class FileOutputStreamEx {
         System.out.println("c:\\Temp\\test.out을 저장하였습니다.");
     }
 }
+//c:\Temp\test.out을 저장하였습니다.
