@@ -18,3 +18,5 @@ public class FileInputStreamEx {
         }
     }
 }
+//c:\Temp\test.out에서 읽은 배열을 출력합니다.
+//7 51 3 4 -1 24
