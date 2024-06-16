@@ -1,0 +1,346 @@
+import javax.sound.sampled.*;
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class musicplayer extends JFrame {
+    private JButton playButton, pauseButton, stopButton, nextButton, prevButton, shuffleButton, repeatButton, likeButton, dislikeButton;
+    private JLabel statusLabel, coverLabel;
+    private JSlider volumeSlider, progressSlider;
+    private JFileChooser fileChooser;
+    private File selectedFile;
+    private List<File> playlist;
+    private Clip audioClip;
+    private boolean isPlaying = false;
+    private boolean isPaused = false;
+    private boolean isAdjustingProgress = false;
+    private boolean isShuffle = false;
+    private boolean isRepeat = false;
+    private long clipTimePosition = 0;
+    private FloatControl volumeControl;
+    private Timer timer;
+    private int currentIndex = 0;
+
+    public musicplayer() {
+        setTitle("Simple Music Player");
+        setSize(600, 400);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new FlowLayout());
+
+        // Create Menu Bar
+        JMenuBar menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+        JMenuItem openMenuItem = new JMenuItem("Open File");
+        JMenuItem openFolderMenuItem = new JMenuItem("Open Folder");
+        fileMenu.add(openMenuItem);
+        fileMenu.add(openFolderMenuItem);
+        menuBar.add(fileMenu);
+        setJMenuBar(menuBar);
+
+        // Load icons for buttons
+        ImageIcon playIcon = new ImageIcon("image/play.jpeg");
+        ImageIcon pauseIcon = new ImageIcon("image/pause.jpeg");
+        ImageIcon stopIcon = new ImageIcon("image/stop.jpeg");
+        ImageIcon nextIcon = new ImageIcon("image/next.jpeg");
+        ImageIcon prevIcon = new ImageIcon("image/prev.jpeg");
+
+        playButton = new JButton(playIcon);
+        pauseButton = new JButton(pauseIcon);
+        stopButton = new JButton(stopIcon);
+        nextButton = new JButton(nextIcon);
+        prevButton = new JButton(prevIcon);
+        shuffleButton = new JButton("Shuffle");
+        repeatButton = new JButton("Repeat");
+        likeButton = new JButton("Like");
+        dislikeButton = new JButton("Dislike");
+
+        statusLabel = new JLabel("No file selected");
+        coverLabel = new JLabel();
+        coverLabel.setPreferredSize(new Dimension(300, 300));
+
+        fileChooser = new JFileChooser();
+
+        volumeSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 50);
+        volumeSlider.setMajorTickSpacing(10);
+        volumeSlider.setPaintTicks(true);
+        volumeSlider.setPaintLabels(true);
+        volumeSlider.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                if (volumeControl != null) {
+                    float volume = volumeSlider.getValue() / 100.0f;
+                    volumeControl.setValue(volumeControl.getMinimum() + (volumeControl.getMaximum() - volumeControl.getMinimum()) * volume);
+                }
+            }
+        });
+
+        progressSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 0);
+        progressSlider.setMajorTickSpacing(10);
+        progressSlider.setPaintTicks(true);
+        progressSlider.setPaintLabels(true);
+        progressSlider.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                if (audioClip != null && !isAdjustingProgress) {
+                    if (isPlaying || isPaused) {
+                        int progress = progressSlider.getValue();
+                        long newPosition = (long) (audioClip.getMicrosecondLength() * (progress / 100.0));
+                        audioClip.setMicrosecondPosition(newPosition);
+                        if (isPlaying) {
+                            clipTimePosition = newPosition;
+                            audioClip.start();
+                        }
+                    }
+                }
+            }
+        });
+
+        add(playButton);
+        add(pauseButton);
+        add(stopButton);
+        add(prevButton);
+        add(nextButton);
+        add(shuffleButton);
+        add(repeatButton);
+        add(likeButton);
+        add(dislikeButton);
+        add(volumeSlider);
+        add(progressSlider);
+        add(statusLabel);
+        add(coverLabel);
+
+        playButton.addActionListener(new PlayAction());
+        pauseButton.addActionListener(new PauseAction());
+        stopButton.addActionListener(new StopAction());
+        nextButton.addActionListener(new NextAction());
+        prevButton.addActionListener(new PrevAction());
+        shuffleButton.addActionListener(new ShuffleAction());
+        repeatButton.addActionListener(new RepeatAction());
+        likeButton.addActionListener(new LikeAction());
+        dislikeButton.addActionListener(new DislikeAction());
+        openMenuItem.addActionListener(new OpenFileAction());
+        openFolderMenuItem.addActionListener(new OpenFolderAction());
+
+        timer = new Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (audioClip != null && isPlaying) {
+                    isAdjustingProgress = true;
+                    int progress = (int) ((audioClip.getMicrosecondPosition() / (double) audioClip.getMicrosecondLength()) * 100);
+                    progressSlider.setValue(progress);
+                    isAdjustingProgress = false;
+                }
+            }
+        });
+        timer.start();
+
+        playlist = new ArrayList<>();
+
+        setVisible(true);
+    }
+
+    private class PlayAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (selectedFile != null) {
+                if (isPaused) {
+                    audioClip.setMicrosecondPosition(clipTimePosition);
+                    audioClip.start();
+                    isPaused = false;
+                    statusLabel.setText("Playing: " + selectedFile.getName());
+                } else if (!isPlaying) {
+                    playFile(selectedFile);
+                }
+            } else {
+                statusLabel.setText("No file selected");
+            }
+        }
+    }
+
+    private class PauseAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (audioClip != null && isPlaying) {
+                clipTimePosition = audioClip.getMicrosecondPosition();
+                audioClip.stop();
+                isPaused = true;
+                statusLabel.setText("Paused: " + selectedFile.getName());
+            }
+        }
+    }
+
+    private class StopAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (audioClip != null && (isPlaying || isPaused)) {
+                audioClip.stop();
+                audioClip.close();
+                isPlaying = false;
+                isPaused = false;
+                clipTimePosition = 0;
+                progressSlider.setValue(0);
+                statusLabel.setText("Stopped: " + selectedFile.getName());
+            }
+        }
+    }
+
+    private class NextAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            nextTrack();
+        }
+    }
+
+    private class PrevAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            prevTrack();
+        }
+    }
+
+    private class ShuffleAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            isShuffle = !isShuffle;
+            shuffleButton.setText(isShuffle ? "Shuffle On" : "Shuffle Off");
+        }
+    }
+
+    private class RepeatAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            isRepeat = !isRepeat;
+            repeatButton.setText(isRepeat ? "Repeat On" : "Repeat Off");
+        }
+    }
+
+    private class LikeAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            statusLabel.setText("Liked: " + selectedFile.getName());
+        }
+    }
+
+    private class DislikeAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            statusLabel.setText("Disliked: " + selectedFile.getName());
+        }
+    }
+
+    private class OpenFileAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int returnValue = fileChooser.showOpenDialog(null);
+            if (returnValue == JFileChooser.APPROVE_OPTION) {
+                selectedFile = fileChooser.getSelectedFile();
+                statusLabel.setText("Selected: " + selectedFile.getName());
+                if (isPlaying || isPaused) {
+                    audioClip.stop();
+                    audioClip.close();
+                    isPlaying = false;
+                    isPaused = false;
+                    clipTimePosition = 0;
+                    progressSlider.setValue(0);
+                }
+                playlist.clear();
+                playlist.add(selectedFile);
+                currentIndex = 0;
+                displayCover(selectedFile);
+            }
+        }
+    }
+
+    private class OpenFolderAction implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            int returnValue = fileChooser.showOpenDialog(null);
+            if (returnValue == JFileChooser.APPROVE_OPTION) {
+                File folder = fileChooser.getSelectedFile();
+                File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".wav"));
+                if (files != null) {
+                    playlist.clear();
+                    Collections.addAll(playlist, files);
+                    if (isShuffle) {
+                        Collections.shuffle(playlist);
+                    }
+                    if (!playlist.isEmpty()) {
+                        currentIndex = 0;
+                        selectedFile = playlist.get(currentIndex);
+                        statusLabel.setText("Selected: " + selectedFile.getName());
+                        displayCover(selectedFile);
+                    }
+                }
+            }
+            fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        }
+    }
+
+    private void playFile(File file) {
+        try {
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(file);
+            audioClip = AudioSystem.getClip();
+            audioClip.open(audioStream);
+            volumeControl = (FloatControl) audioClip.getControl(FloatControl.Type.MASTER_GAIN);
+            audioClip.start();
+            isPlaying = true;
+            statusLabel.setText("Playing: " + file.getName());
+            audioClip.addLineListener(event -> {
+                if (event.getType() == LineEvent.Type.STOP && !isPaused) {
+                    if (isRepeat) {
+                        playFile(file);
+                    } else {
+                        nextTrack();
+                    }
+                }
+            });
+        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException ex) {
+            ex.printStackTrace();
+            statusLabel.setText("Error playing file.");
+        }
+    }
+
+    private void nextTrack() {
+        if (playlist.isEmpty()) {
+            return;
+        }
+        currentIndex = (currentIndex + 1) % playlist.size();
+        selectedFile = playlist.get(currentIndex);
+        playFile(selectedFile);
+        displayCover(selectedFile);
+    }
+
+    private void prevTrack() {
+        if (playlist.isEmpty()) {
+            return;
+        }
+        currentIndex = (currentIndex - 1 + playlist.size()) % playlist.size();
+        selectedFile = playlist.get(currentIndex);
+        playFile(selectedFile);
+        displayCover(selectedFile);
+    }
+
+    private void displayCover(File file) {
+        // Assuming the cover image is in the same directory with the same name but with .jpg extension
+        String coverPath = file.getAbsolutePath().replace(".wav", ".jpg");
+        ImageIcon coverIcon = new ImageIcon(coverPath);
+        if (coverIcon.getIconWidth() > 0) {
+            coverLabel.setIcon(coverIcon);
+        } else {
+            coverLabel.setIcon(null);
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(musicplayer::new);
+    }
+}
