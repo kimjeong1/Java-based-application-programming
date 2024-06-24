@@ -1,0 +1,41 @@
+// 상태를 추적하는 변수 추가
+private boolean isLiked = false;
+private boolean isDisliked = false;
+
+private class LikeAction implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (!isLiked) {
+            // 좋아요 상태로 전환
+            statusLabel.setText("Liked: " + selectedFile.getName());
+            likeButton.setIcon(resizeIcon(new ImageIcon(likePressedIconPath), 50, 50));
+            dislikeButton.setIcon(resizeIcon(new ImageIcon(dislikeIconPath), 50, 50));
+            isLiked = true;
+            isDisliked = false;
+        } else {
+            // 좋아요 상태 취소
+            statusLabel.setText("Unliked: " + selectedFile.getName());
+            likeButton.setIcon(resizeIcon(new ImageIcon(likeIconPath), 50, 50));
+            isLiked = false;
+        }
+    }
+}
+
+private class DislikeAction implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (!isDisliked) {
+            // 싫어요 상태로 전환
+            statusLabel.setText("Disliked: " + selectedFile.getName());
+            dislikeButton.setIcon(resizeIcon(new ImageIcon(dislikePressedIconPath), 50, 50));
+            likeButton.setIcon(resizeIcon(new ImageIcon(likeIconPath), 50, 50));
+            isDisliked = true;
+            isLiked = false;
+        } else {
+            // 싫어요 상태 취소
+            statusLabel.setText("Undisliked: " + selectedFile.getName());
+            dislikeButton.setIcon(resizeIcon(new ImageIcon(dislikeIconPath), 50, 50));
+            isDisliked = false;
+        }
+    }
+}
